@@ -14,17 +14,15 @@ import { toast } from "react-hot-toast";
 function EditorPage() {
   const [clients, setClients] = useState([]);
   const codeRef = useRef(null);
-
   const Location = useLocation();
   const navigate = useNavigate();
   const { roomId } = useParams();
 
   const socketRef = useRef(null);
+
   useEffect(() => {
     const init = async () => {
       socketRef.current = await initSocket();
-      socketRef.current.on("connect_error", (err) => handleErrors(err));
-      socketRef.current.on("connect_failed", (err) => handleErrors(err));
 
       const handleErrors = (err) => {
         console.log("Error", err);
@@ -32,29 +30,27 @@ function EditorPage() {
         navigate("/");
       };
 
+      socketRef.current.on("connect_error", handleErrors);
+      socketRef.current.on("connect_failed", handleErrors);
+
       socketRef.current.emit(ACTIONS.JOIN, {
         roomId,
         username: Location.state?.username,
       });
 
-      // Listen for new clients joining the chatroom
-      socketRef.current.on(
-        ACTIONS.JOINED,
-        ({ clients, username, socketId }) => {
-          // this insure that new user connected message do not display to that user itself
-          if (username !== Location.state?.username) {
-            toast.success(`${username} joined the room.`);
-          }
-          setClients(clients);
-          // also send the code to sync
-          socketRef.current.emit(ACTIONS.SYNC_CODE, {
-            code: codeRef.current,
-            socketId,
-          });
+      socketRef.current.on(ACTIONS.JOINED, ({ clients, username, socketId }) => {
+        if (username !== Location.state?.username) {
+          toast.success(`${username} joined the room.`);
         }
-      );
+        setClients(clients);
 
-      // listening for disconnected
+        // Send code to sync
+        socketRef.current.emit(ACTIONS.SYNC_CODE, {
+          code: codeRef.current,
+          socketId,
+        });
+      });
+
       socketRef.current.on(ACTIONS.DISCONNECTED, ({ socketId, username }) => {
         toast.success(`${username} left the room`);
         setClients((prev) => {
@@ -62,15 +58,18 @@ function EditorPage() {
         });
       });
     };
+
     init();
 
-    // cleanup
+    // Cleanup
     return () => {
-      socketRef.current && socketRef.current.disconnect();
-      socketRef.current.off(ACTIONS.JOINED);
-      socketRef.current.off(ACTIONS.DISCONNECTED);
+      if (socketRef.current) {
+        socketRef.current.disconnect();
+        socketRef.current.off(ACTIONS.JOINED);
+        socketRef.current.off(ACTIONS.DISCONNECTED);
+      }
     };
-  }, []);
+  }, [Location.state?.username, navigate, roomId]);
 
   if (!Location.state) {
     return <Navigate to="/" />;
@@ -79,21 +78,21 @@ function EditorPage() {
   const copyRoomId = async () => {
     try {
       await navigator.clipboard.writeText(roomId);
-      toast.success(`roomIs is copied`);
+      toast.success(`Room ID is copied`);
     } catch (error) {
       console.log(error);
-      toast.error("unable to copy the room Id");
+      toast.error("Unable to copy the Room ID");
     }
   };
 
-  const leaveRoom = async () => {
+  const leaveRoom = () => {
     navigate("/");
   };
 
   return (
     <div className="container-fluid vh-100">
       <div className="row h-100">
-        {/* client panel */}
+        {/* Client panel */}
         <div
           className="col-md-2 bg-dark text-light d-flex flex-column h-100"
           style={{ boxShadow: "2px 0px 4px rgba(0, 0, 0, 0.1)" }}
@@ -107,7 +106,7 @@ function EditorPage() {
           <hr style={{ marginTop: "-3rem" }} />
 
           {/* Client list container */}
-          <div className="d-flex flex-column flex-grow-1 overflow-auto">
+          <div className="d-flex flex-column  overflow-auto">
             <span className="mb-2">Members</span>
             {clients.map((client) => (
               <Client key={client.socketId} username={client.username} />
@@ -116,7 +115,7 @@ function EditorPage() {
 
           <hr />
           {/* Buttons */}
-          <div className="mt-auto ">
+          <div className="mt-auto">
             <button className="btn btn-success" onClick={copyRoomId}>
               Copy Room ID
             </button>
@@ -130,7 +129,7 @@ function EditorPage() {
         </div>
 
         {/* Editor panel */}
-        <div className="col-md-10 text-light d-flex flex-column h-100 ">
+        <div className="col-md-10 text-light d-flex flex-column h-100">
           <Editor
             socketRef={socketRef}
             roomId={roomId}
