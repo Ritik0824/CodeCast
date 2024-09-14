@@ -14,7 +14,10 @@ const io = new Server(server);
 const userSocketMap = {};
 
 app.use(cors({
-  origin: "http://localhost:3000"
+  origin: "https://codecast-ritik.netlify.app",
+  methods: ["GET", "POST", "PUT", "DELETE", "OPTIONS"],
+  allowedHeaders: ["Content-Type", "Authorization", "Access-Control-Allow-Origin", "Access-Control-Allow-Credentials"],
+  credentials: true
 }));
 
 app.use(express.json());
